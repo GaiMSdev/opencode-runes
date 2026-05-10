@@ -851,6 +851,329 @@ Paste into git commit -m or use git commit -m "$(echo '${message}')"`,
           };
         },
       }),
+      // ---- rune_review --------------------------------------------------
+      rune_review: tool({
+        description: `Review staged or recent git changes for issues.
+
+WHEN TO CALL:
+- User says "/runes-review", "review this", "review the diff", "review my changes"
+
+FINDINGS:
+- Security: secrets, injection, eval
+- Logic: off-by-one, null-deref, inf-loop
+- Performance: N+1, console.log, blocking-in-async
+- Error handling: uncaught rejections, swallowed errors
+- Max 10 findings, sorted by severity: CRITICAL > WARN > NOTE
+
+FORMAT:
+  path:line: SEVERITY: problem. fix.
+
+No praise, no style/formatting nits.`,
+        args: {
+          ref: z.string().optional().describe("Git ref to diff against (e.g. main, HEAD~1). Defaults to staged, then HEAD."),
+        },
+        async execute({ ref }) {
+          const cwd = process.cwd();
+
+          // Acquire diff
+          let diff: string;
+          let source: string;
+          try {
+            if (ref) {
+              diff = execSync(`git diff ${ref}...HEAD`, { cwd, encoding: "utf8", timeout: 8000 });
+              source = `diff ${ref}...HEAD`;
+            } else {
+              diff = execSync("git diff --cached", { cwd, encoding: "utf8", timeout: 5000 });
+              source = "staged";
+            }
+          } catch {
+            return { output: "Not a git repository or git not available." };
+          }
+
+          if (!diff || diff.trim().length === 0) {
+            if (!ref) {
+              try {
+                diff = execSync("git diff HEAD", { cwd, encoding: "utf8", timeout: 5000 });
+                source = "unstaged (git diff HEAD)";
+              } catch {
+                return { output: "No changes found." };
+              }
+            }
+            if (!diff || diff.trim().length === 0) return { output: "No changes found." };
+          }
+
+          // Parse hunks: file path, start line, added lines
+          interface Hunk {
+            file: string;
+            startLine: number;
+            lines: { content: string; lineNum: number }[];
+          }
+
+          const hunks: Hunk[] = [];
+          let currentFile = "";
+          let currentStart = 0;
+
+          for (const line of diff.split("\n")) {
+            const fileMatch = line.match(/^diff --git a\/(.+?) b\//);
+            if (fileMatch) { currentFile = fileMatch[1]!; continue; }
+
+            const hunkMatch = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
+            if (hunkMatch) {
+              currentStart = parseInt(hunkMatch[1]!, 10);
+              continue;
+            }
+
+            if (line.startsWith("+") && !line.startsWith("+++")) {
+              const content = line.slice(1);
+              // Don't track pure whitespace/comment diffs for review
+              if (!content.match(/^\s*(?:\/\/|#|<!--|\*|\/\*)/)) {
+                // Find or create hunk for current file
+                let hunk = hunks.find(h => h.file === currentFile && h.startLine === currentStart);
+                if (!hunk) {
+                  hunk = { file: currentFile, startLine: currentStart, lines: [] };
+                  hunks.push(hunk);
+                }
+                hunk.lines.push({ content, lineNum: currentStart + hunk.lines.length });
+              }
+            }
+          }
+
+          // Analyze hunks
+          interface Finding {
+            file: string;
+            line: number;
+            severity: "CRITICAL" | "WARN" | "NOTE";
+            problem: string;
+            fix: string;
+          }
+
+          const findings: Finding[] = [];
+
+          for (const hunk of hunks) {
+            const joined = hunk.lines.map(l => l.content).join("\n");
+
+            // ── Security ──────────────────────────────────────────────────
+            // Hardcoded secrets
+            const secretPat = /(?:password|passwd|pwd|secret|api[_-]?key|token|auth[_-]?token|access[_-]?key|private[_-]?key)\s*[:=]\s*['"][^'"]+['"]/i;
+            const secretMatch = joined.match(secretPat);
+            if (secretMatch) {
+              const ln = hunk.lines.find(l => l.content.match(secretPat))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "CRITICAL",
+                problem: "Hardcoded credential",
+                fix: "Move to env variable or secrets manager",
+              });
+            }
+
+            // SQL injection
+            const sqlInj = /(?:exec|query|execute|run)\s*\(\s*(?:`|'|")\s*(?:SELECT|INSERT|UPDATE|DELETE)/i;
+            const sqlMatch = joined.match(sqlInj);
+            if (sqlMatch) {
+              const ln = hunk.lines.find(l => l.content.match(sqlInj))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "CRITICAL",
+                problem: "Possible SQL injection (string interpolation in SQL)",
+                fix: "Use parameterized query or ORM method",
+              });
+            }
+
+            // eval / Function constructor
+            const evalPat = /\b(?:eval|Function)\s*\(/g;
+            const evalMatch = joined.match(evalPat);
+            if (evalMatch) {
+              const ln = hunk.lines.find(l => l.content.match(/\b(?:eval|Function)\s*\(/))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "CRITICAL",
+                problem: "eval() or dynamic Function constructor",
+                fix: "Use safer alternative (JSON.parse, switch, etc.)",
+              });
+            }
+
+            // Command injection
+            const cmdInj = /(?:exec(?:Sync)?|spawn|system)\s*\(\s*(?:`|\+|concat)/gi;
+            const cmdMatch = joined.match(cmdInj);
+            if (cmdMatch) {
+              const ln = hunk.lines.find(l => l.content.match(cmdInj))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "CRITICAL",
+                problem: "Command injection risk (shell with dynamic input)",
+                fix: "Pass arguments as array, not string",
+              });
+            }
+
+            // ── Logic bugs ────────────────────────────────────────────────
+            // Off-by-one: <= in loop where < is intended (array length)
+            const obo = /for\s*\([^)]*<=\s*\w+\.\s*length\b/i;
+            const oboMatch = joined.match(obo);
+            if (oboMatch) {
+              const ln = hunk.lines.find(l => l.content.match(obo))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "WARN",
+                problem: "Off-by-one risk: <= .length iterates past last index",
+                fix: "Use < .length instead of <=",
+              });
+            }
+
+            // Assignment in condition (= vs ==)
+            const assignCond = /(?:if|while|for)\s*\([^)]*[^!<>=]=[^=][^)]*\)/;
+            const assignMatch = joined.match(assignCond);
+            if (assignMatch) {
+              const ln = hunk.lines.find(l => l.content.match(assignCond))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "WARN",
+                problem: "Assignment (=) in conditional — likely meant comparison (==)",
+                fix: "Use == or === for comparison",
+              });
+            }
+
+            // Potential null dereference
+            const nullDeref = /\.\s*(?:map|filter|forEach|reduce|find)\s*\(/g;
+            const nullUse = joined.match(nullDeref);
+            if (nullUse) {
+              for (const _m of nullUse) {
+                // Check if there's a null check upstream
+                const hasGuard = /\b(?:if\s*\(\s*\w+\s*!==?\s*null|\?\??\.\s*(?:map|filter|foreach|reduce|find))/i.test(joined);
+                if (!hasGuard) {
+                  const ln = hunk.lines.find(l => l.content.match(nullDeref))?.lineNum ?? hunk.startLine;
+                  findings.push({
+                    file: hunk.file, line: ln, severity: "WARN",
+                    problem: "Array method called without null guard",
+                    fix: "Add `?.` optional chaining or null check before call",
+                  });
+                }
+                break; // one finding per hunk for this pattern
+              }
+            }
+
+            // ── Performance ───────────────────────────────────────────────
+            // console.log left in
+            const consoleLog = /\bconsole\.\s*(?:log|debug|info|warn|error)\s*\([^)]*\)/g;
+            const logMatch = joined.match(consoleLog);
+            if (logMatch) {
+              for (const _m of logMatch) {
+                const ln = hunk.lines.find(l => l.content.match(/\bconsole\.\s*(?:log|debug|info|warn|error)\s*\(/))?.lineNum ?? hunk.startLine;
+                findings.push({
+                  file: hunk.file, line: ln, severity: "NOTE",
+                  problem: "Console statement left in",
+                  fix: "Remove or replace with proper logger",
+                });
+                break;
+              }
+            }
+
+            // N+1 in loops (DB query inside for/forEach)
+            const nPlus1 = /(?:for|forEach|while|map)\s*[^}]*\n\s*(?:await\s+)?\w+\s*\.\s*(?:find|findAll|findMany|fetch|query|execute)/i;
+            const n1Match = joined.match(nPlus1);
+            if (n1Match) {
+              const ln = hunk.lines.find(l => l.content.match(/(?:await\s+)?\w+\s*\.\s*(?:find|findAll|findMany|fetch|query|execute)/i))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "WARN",
+                problem: "N+1 query pattern: DB call inside loop",
+                fix: "Batch query before loop or use JOIN/in-clause",
+              });
+            }
+
+            // Large sync operation in async function
+            const blockingInAsync = /\b(?:readFileSync|writeFileSync|execSync|existsSync|statSync)\b/;
+            const blockMatch = joined.match(blockingInAsync);
+            if (blockMatch) {
+              const ln = hunk.lines.find(l => l.content.match(blockingInAsync))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "NOTE",
+                problem: "Blocking sync call — consider async alternative",
+                fix: "Use readFile/writeFile/exec instead of Sync variant",
+              });
+            }
+
+            // ── Missing error handling ─────────────────────────────────────
+            // Promise without catch
+            const noCatch = /\.\s*then\s*\([^)]*\)\s*(?!\s*\.\s*catch)/g;
+            const thenNoCatch = joined.match(noCatch);
+            if (thenNoCatch) {
+              const ln = hunk.lines.find(l => l.content.match(noCatch))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "WARN",
+                problem: "Promise chain without catch handler",
+                fix: "Add .catch() or use async/await with try/catch",
+              });
+            }
+
+            // await outside try
+            const awaitNoTry = /\bawait\b/;
+            const hasAwait = joined.match(awaitNoTry);
+            const hasTry = joined.match(/\btry\b/);
+            const hasCatch = joined.match(/\bcatch\b/);
+            if (hasAwait && !hasTry && !hasCatch) {
+              const ln = hunk.lines.find(l => l.content.match(awaitNoTry))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "NOTE",
+                problem: "await without try/catch — may swallow rejection",
+                fix: "Wrap in try/catch or add .catch() handler",
+              });
+            }
+
+            // Ignored return value (checking for void-ignored results)
+            // Only flag if the method name suggests it returns something important
+            const ignoredReturn = /\b(?:save|update|delete|insert|create|write|send|push)\s*\([^)]*\)\s*;/i;
+            const ignMatch = joined.match(ignoredReturn);
+            if (ignMatch) {
+              const ln = hunk.lines.find(l => l.content.match(ignoredReturn))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "NOTE",
+                problem: "Return value ignored — result may indicate failure",
+                fix: "Check return value or add error handling",
+              });
+            }
+
+            // ── Misleading names (only when actively misleading) ───────────
+            const misleadingName = /const\s+(?:temp|tmp|foo|bar|data|thing|stuff|blah)\s*[:=]/i;
+            const nameMatch = joined.match(misleadingName);
+            if (nameMatch) {
+              const ln = hunk.lines.find(l => l.content.match(misleadingName))?.lineNum ?? hunk.startLine;
+              findings.push({
+                file: hunk.file, line: ln, severity: "NOTE",
+                problem: "Non-descriptive variable name",
+                fix: "Rename to reflect purpose",
+              });
+            }
+          }
+
+          // Deduplicate same file+line+problem
+          const seen = new Set<string>();
+          const unique: Finding[] = [];
+          for (const f of findings) {
+            const key = `${f.file}:${f.line}:${f.problem}`;
+            if (!seen.has(key)) { seen.add(key); unique.push(f); }
+          }
+
+          // Sort: CRITICAL first, then WARN, then NOTE
+          const severityOrder = { CRITICAL: 0, WARN: 1, NOTE: 2 } as const;
+          unique.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+          // Cap at 10
+          const top = unique.slice(0, 10);
+
+          // Build output
+          const linesOut: string[] = [
+            "RUNES REVIEW",
+            `Source: ${source}`,
+            `Findings: ${top.length}${unique.length > 10 ? ` (showing top ${top.length} of ${unique.length})` : ""}`,
+            "═══════════════════════════════════",
+          ];
+
+          if (top.length === 0) {
+            linesOut.push("No actionable findings. Code looks sound.");
+          } else {
+            for (const f of top) {
+              const badge = f.severity === "CRITICAL" ? "!" : f.severity === "WARN" ? "•" : " ";
+              linesOut.push(`${f.file}:${f.line}: ${badge} ${f.severity}: ${f.problem}. ${f.fix}.`);
+            }
+          }
+
+          linesOut.push("═══════════════════════════════════");
+          return { output: linesOut.join("\n") };
+        },
+      }),
       // ---- rune_shrink --------------------------------------------------
       rune_shrink: tool({
         description: `Compress text, file, or image content on-demand using active Runes mode rules.

@@ -16,6 +16,10 @@
     "runes-commit": {
       "description": "Generate a compressed Conventional Commits message from staged changes",
       "template": "Call the rune_commit tool and display its output exactly as returned."
+    },
+    "runes-review": {
+      "description": "Review staged or recent git changes for issues (security, logic, performance, error handling)",
+      "template": "Call the rune_review tool and display its output exactly as returned. If the user specified a ref (e.g. /runes-review main), pass it as 'ref'."
     }
   }
 }
