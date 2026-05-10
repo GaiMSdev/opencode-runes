@@ -132,3 +132,29 @@ export function readModeSwitchMarker(): string | null {
     return null;
   }
 }
+
+// Delegation marker — one-shot task description + optional mode override
+function delegationPath(): string {
+  const base = process.env["OPENCODE_CONFIG_DIR"] ??
+    path.join(os.homedir(), ".config", "opencode");
+  return path.join(base, ".runes-delegation");
+}
+
+export function writeDelegationMarker(task: string, mode?: string): void {
+  try {
+    const fp = delegationPath();
+    fs.mkdirSync(path.dirname(fp), { recursive: true });
+    fs.writeFileSync(fp, JSON.stringify({ task, mode: mode ?? null }), "utf8");
+  } catch { /* best-effort */ }
+}
+
+export function readDelegationMarker(): { task: string; mode: string | null } | null {
+  try {
+    const fp = delegationPath();
+    const data = JSON.parse(fs.readFileSync(fp, "utf8"));
+    fs.unlinkSync(fp);
+    return data;
+  } catch {
+    return null;
+  }
+}

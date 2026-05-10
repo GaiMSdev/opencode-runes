@@ -24,7 +24,7 @@ import { z } from "zod";
 import { readFlag, writeFlag, removeFlag, isActive } from "./flag.js";
 import { fullRules, reinforcement, badge } from "./rules.js";
 import { querySessionStats, queryAllTimeStats, estimateSaved, fmt, compactStatsLine, COMPRESSION_RATIO } from "./stats.js";
-import { readConfig, writeConfig, configToLines, tickTurn, writeModeSwitchMarker, readModeSwitchMarker } from "./config.js";
+import { readConfig, writeConfig, configToLines, tickTurn, writeModeSwitchMarker, readModeSwitchMarker, writeDelegationMarker, readDelegationMarker } from "./config.js";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -297,6 +297,12 @@ export const server = async (_ctx) => {
                 const intervalHit = tickTurn(sessionID);
                 const showStats = intervalHit || (switched !== null && cfg.stats.onSwitch);
                 let msg = reinforcement(activeMode);
+                // Check for one-shot delegation context
+                const deleg = readDelegationMarker();
+                if (deleg) {
+                    const dMode = deleg.mode ? deleg.mode : activeMode;
+                    msg += ` ## Delegation: "${deleg.task}" — use ${dMode.toUpperCase()} compression for this response only.`;
+                }
                 if (showStats) {
                     const st = querySessionStats(sessionID);
                     const saved = estimateSaved(st.output, activeMode);
@@ -1074,6 +1080,35 @@ No praise, no style/formatting nits.`,
                     }
                     linesOut.push("═══════════════════════════════════");
                     return { output: linesOut.join("\n") };
+                },
+            }),
+            // ---- rune_delegate ------------------------------------------------
+            rune_delegate: tool({
+                description: `Set a one-shot delegation context for the next response.
+
+WHEN TO CALL:
+- User says "/runes-delegate <task>" or "delegate <task> to runes"
+- User wants the next response to use a specific compression mode for a focused task
+
+WHAT IT DOES:
+Sets a temporary delegation marker. The next LLM response will include the
+delegation context in its system prompt. After one response, auto-clears.
+
+MODE (optional): override compression mode for this delegation.
+- "lite" for research/exploration (more readable)
+- "full" for code reviews / analysis (concise)
+- "ultra" for maximum density output
+- "wenyan" for classical Chinese style
+
+Default: uses active compression mode.`,
+                args: {
+                    task: z.string().describe("The task or instruction to delegate to the next response."),
+                    mode: z.enum(["lite", "full", "ultra", "wenyan"]).optional().describe("Optional mode override for this delegation."),
+                },
+                async execute({ task, mode }) {
+                    writeDelegationMarker(task, mode);
+                    const modeLabel = mode ? ` (${mode.toUpperCase()})` : "";
+                    return { output: `Delegation set${modeLabel}: "${task}"\nNext response will use this context, then auto-clear.` };
                 },
             }),
             // ---- rune_shrink --------------------------------------------------
