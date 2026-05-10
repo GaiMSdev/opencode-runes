@@ -32,6 +32,17 @@ const MODE_RULES: Record<Exclude<Mode, "off">, string> = {
 - Strip conjunctions where unambiguous. One word when one word enough.
 - Reason minimally, emit only the final answer.
 - Goal: Maximal information density — every token earns its place.`,
+
+  wenyan: `[RUNES: WENYAN] COMPRESS WENYAN ACTIVE
+- Classical Chinese literary style (文言) for compression.
+- Use wenyan particles: 之, 其, 者, 也, 矣, 乎, 焉, 哉, 兮, 耳.
+- Omit subjects where contextually obvious (pro-drop).
+- Verb precedes object (classical Chinese syntax: VO).
+- Replace multi-word phrases with classical idioms (成语) where possible.
+- Strip all modern filler, articles, conjunctions, pleasantries.
+- Technical terms preserved as-is (code, API, paths, URLs — NEVER compress).
+- Goal: 60-80% character reduction via classical Chinese literary compression.
+- Auto-clarity: revert to ultra/full prose for security, destructive ops, legal.`,
 };
 
 // ---------------------------------------------------------------------------
@@ -77,6 +88,8 @@ export function reinforcement(mode: Exclude<Mode, "off">): string {
       return "[RUNES: LITE] COMPRESS LITE: Drop filler/hedging. Keep articles + full sentences. Professional-tight.";
     case "ultra":
       return "[RUNES: ULTRA] COMPRESS ULTRA: Abbrev prose (DB/auth/cfg/req/res/fn/impl/ctx/err/msg/val/pkg). X→Y causality. Strip conjunctions. One word when enough. Emit only final answer.";
+    case "wenyan":
+      return "[RUNES: WENYAN] COMPRESS WENYAN: Classical Chinese (文言). 之/其/者/也/矣 particles. VO syntax. 成语 idioms. Technical terms preserved.";
     default:
       return "[RUNES: FULL] COMPRESS FULL: Drop articles. Fragments OK. No pleasantries. High-signal.";
   }
