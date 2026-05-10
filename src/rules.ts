@@ -12,20 +12,20 @@ import type { Mode } from "./flag.js";
 // ---------------------------------------------------------------------------
 
 const MODE_RULES: Record<Exclude<Mode, "off">, string> = {
-  lite: `COMPRESS LITE ACTIVE
+  lite: `[RUNES: LITE] COMPRESS LITE ACTIVE
 - Drop filler words (just, really, basically, actually, very, quite).
 - Remove pleasantry openers ("Great question!", "Sure!", "Of course!") and hedging.
 - Keep standard grammar: full sentences, articles (a/an/the) retained.
 - Goal: Professional-tight writing — no fat, still readable.`,
 
-  full: `COMPRESS FULL ACTIVE
+  full: `[RUNES: FULL] COMPRESS FULL ACTIVE
 - Omit articles (a/an/the) and filler words.
 - No pleasantry openers or closing affirmations.
 - Use fragments where subject is obvious. Short synonyms preferred.
 - Pattern: [subject] [verb] [reason]. [next step].
 - Goal: High-signal, low-ceremony output.`,
 
-  ultra: `COMPRESS ULTRA ACTIVE
+  ultra: `[RUNES: ULTRA] COMPRESS ULTRA ACTIVE
 - MetaGlyph symbols allowed: ∈ (in/contains), → (leads to/causes), ∀ (all/every), ∃ (exists/there-is), ∴ (therefore), ! (critical/warning).
 - Chain-of-Draft (CoD): reason silently in ≤3 minimal draft steps, emit only the final answer.
 - Abbreviate prose: DB, auth, cfg, req, res, fn, impl, ctx, err, msg, val, bool, pkg, dep, env, init, ref, var, arg, param, attr, prop.
@@ -39,6 +39,10 @@ const MODE_RULES: Record<Exclude<Mode, "off">, string> = {
 // ---------------------------------------------------------------------------
 
 const EXCEPTIONS = `
+## Status badge — prepend EVERY response with the badge line:
+[RUNES: MODE]
+(replace MODE with current mode: LITE, FULL, or ULTRA)
+
 ## Auto-safety — ALWAYS use full prose for:
 - Security warnings or authentication/authorization failures.
 - Irreversible operations (destructive git commands, file deletes, data loss).
@@ -70,11 +74,11 @@ export function fullRules(mode: Exclude<Mode, "off">): string {
 export function reinforcement(mode: Exclude<Mode, "off">): string {
   switch (mode) {
     case "lite":
-      return "COMPRESS LITE: Drop filler/hedging. Keep articles + full sentences. Professional-tight.";
+      return "[RUNES: LITE] COMPRESS LITE: Drop filler/hedging. Keep articles + full sentences. Professional-tight.";
     case "ultra":
-      return "COMPRESS ULTRA: MetaGlyph (∈ → ∀ ∃ ∴ !). Abbreviate prose (DB/fn/req/res/impl/ctx/err). Strip conjunctions. CoD: reason silently → answer. Arrows for causality.";
+      return "[RUNES: ULTRA] COMPRESS ULTRA: MetaGlyph (∈ → ∀ ∃ ∴ !). Abbreviate prose (DB/fn/req/res/impl/ctx/err). Strip conjunctions. CoD: reason silently → answer. Arrows for causality.";
     default:
-      return "COMPRESS FULL: Drop articles. Fragments OK. No pleasantries. High-signal.";
+      return "[RUNES: FULL] COMPRESS FULL: Drop articles. Fragments OK. No pleasantries. High-signal.";
   }
 }
 
