@@ -153,7 +153,7 @@ export function queryAllTimeStats(): TokenStats {
  * Estimated tokens saved given compression mode and actual output count.
  * Based on measured reduction ratios from caveman/GEM-THAL benchmarking.
  */
-const COMPRESSION_RATIO: Record<string, number> = {
+export const COMPRESSION_RATIO: Record<string, number> = {
   lite: 0.30, // ~30% shorter output
   full: 0.55, // ~55% shorter output
   ultra: 0.75, // ~75% shorter output
@@ -171,3 +171,11 @@ export function estimateSaved(outputTokens: number, mode: string): number {
 export function fmt(n: number): string {
   return n.toLocaleString("en-US");
 }
+
+export function compactStatsLine(mode: string, _outputTokens: number, savedTokens: number, ratio: number): string {
+  if (savedTokens <= 0) return `[RUNES: ${mode.toUpperCase()}]`;
+  const pct = Math.round(ratio * 100);
+  const savedFmt = savedTokens >= 1000 ? `${(savedTokens / 1000).toFixed(1)}K` : `${savedTokens}`;
+  return `[RUNES: ${mode.toUpperCase()} | ~${pct}% | ~${savedFmt} tokens spared]`;
+}
+

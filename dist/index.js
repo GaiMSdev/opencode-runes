@@ -23,7 +23,8 @@ import { tool } from "@opencode-ai/plugin";
 import { z } from "zod";
 import { readFlag, writeFlag, removeFlag, isActive } from "./flag.js";
 import { fullRules, reinforcement, badge } from "./rules.js";
-import { querySessionStats, queryAllTimeStats, estimateSaved, fmt } from "./stats.js";
+import { querySessionStats, queryAllTimeStats, estimateSaved, fmt, compactStatsLine, COMPRESSION_RATIO } from "./stats.js";
+import { readConfig, writeConfig, configToLines, tickTurn, writeModeSwitchMarker, readModeSwitchMarker } from "./config.js";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -128,14 +129,35 @@ export const server = async (_ctx) => {
                 return;
             const sessionID = input.sessionID ?? "unknown";
             const activeMode = mode;
+            const switched = readModeSwitchMarker();
             if (!seenSessions.has(sessionID)) {
                 // First turn in this session — inject verbose full rule block
                 seenSessions.add(sessionID);
-                output.system.push(`<opencode-runes>\n${fullRules(activeMode)}\n</opencode-runes>`);
+                let rules = fullRules(activeMode);
+                const showStats = switched !== null && readConfig().stats.onSwitch;
+                if (showStats) {
+                    const st = querySessionStats(sessionID);
+                    const saved = estimateSaved(st.output, activeMode);
+                    const ratio = COMPRESSION_RATIO[activeMode] ?? 0;
+                    const line = compactStatsLine(activeMode, st.output, saved, ratio);
+                    rules += `\n\n## Stats badge override — use this badge line for THIS response:\n${line}`;
+                }
+                output.system.push(`<opencode-runes>\n${rules}\n</opencode-runes>`);
             }
             else {
                 // Subsequent turns — inject compact reinforcement only
-                output.system.push(`<opencode-runes>${reinforcement(activeMode)} Deactivate: "normal mode".</opencode-runes>`);
+                const cfg = readConfig();
+                const intervalHit = tickTurn(sessionID);
+                const showStats = intervalHit || (switched !== null && cfg.stats.onSwitch);
+                let msg = reinforcement(activeMode);
+                if (showStats) {
+                    const st = querySessionStats(sessionID);
+                    const saved = estimateSaved(st.output, activeMode);
+                    const ratio = COMPRESSION_RATIO[activeMode] ?? 0;
+                    const line = compactStatsLine(activeMode, st.output, saved, ratio);
+                    msg += ` ## Stats badge override — use this badge line for THIS response:\n${line}`;
+                }
+                output.system.push(`<opencode-runes>${msg} Deactivate: "normal mode".</opencode-runes>`);
             }
         },
         // -----------------------------------------------------------------------
@@ -243,6 +265,7 @@ After calling this tool, confirm the new mode to the user with the status badge.
                         };
                     }
                     writeFlag(mode);
+                    writeModeSwitchMarker(mode);
                     const modeDescriptions = {
                         lite: "Drop filler/hedging. Keep full sentences. Professional-tight.",
                         full: "Drop articles. Fragments OK. No pleasantries. High-signal.",
@@ -371,6 +394,19 @@ Or use natural language:
   "switch to runes lite"
   "normal mode"  (deactivates)
 
+CONFIG — /runes-config
+──────────────────────
+View or modify auto-stats behavior:
+
+  /runes-config              Show current config
+  /runes-config stats interval <N>   Auto-show stats every N turns (default: 5)
+  /runes-config stats interval off   Disable auto-stats
+  /runes-config stats on-switch on   Show stats on mode switch (default: on)
+  /runes-config stats on-switch off  Disable on-switch stats
+
+Stats appear as enriched badge in the AI response:
+  [RUNES: LITE | ~55% | ~2.4K tokens spared]
+
 METAGLYPH SYMBOLS (ultra only)
 ────────────────────────────────
 ∈  in / contains
@@ -379,6 +415,8 @@ METAGLYPH SYMBOLS (ultra only)
 ∃  exists / there-is
 ∴  therefore
 !  critical / warning
+
+⚠️  Use ONLY these six symbols. NEVER invent custom notation (<R>, ⊕, ⊗, ↦, ⇢, etc.).
 
 CHAIN-OF-DRAFT (ultra only)
 ─────────────────────────────
@@ -423,6 +461,44 @@ Plugin:  ~/.config/opencode/plugins/opencode-runes/
 ════════════════════════════════════════════════════════
 `.trim(),
                     };
+                },
+            }),
+            // ---- rune_config --------------------------------------------------
+            rune_config: tool({
+                description: `View or modify opencode-runes configuration.
+
+WHEN TO CALL:
+- User says "/runes-config", "runes config", "show runes config"
+- User wants to change auto-stats behavior (interval, on-switch)
+
+SETTINGS:
+- stats.interval <N>    : Show stats every N turns (default: 5). Set to 0 to disable.
+- stats.on-switch <on|off> : Show stats when switching modes (default: on).
+
+EXAMPLES:
+- "show runes config" — view current settings
+- "set stats interval to 10" — stats every 10 turns
+- "set stats on-switch off" — disable stats on mode switch
+- "turn off auto stats" — set interval to 0`,
+                args: {
+                    show: z.boolean().optional().describe("Show current configuration."),
+                    stats_interval: z.union([z.number().int().min(0), z.null()]).optional().describe("Show stats every N turns. 0 or null disables."),
+                    stats_onSwitch: z.boolean().optional().describe("Show stats on mode switch."),
+                },
+                async execute({ show, stats_interval, stats_onSwitch }) {
+                    if (show || (stats_interval === undefined && stats_onSwitch === undefined)) {
+                        const cfg = readConfig();
+                        return { output: configToLines(cfg).join("\n") };
+                    }
+                    const cfg = readConfig();
+                    if (stats_interval !== undefined) {
+                        cfg.stats.interval = stats_interval === 0 ? null : stats_interval;
+                    }
+                    if (stats_onSwitch !== undefined) {
+                        cfg.stats.onSwitch = stats_onSwitch;
+                    }
+                    writeConfig(cfg);
+                    return { output: `Config updated.\n${configToLines(cfg).join("\n")}` };
                 },
             }),
             // ---- rune_shrink --------------------------------------------------

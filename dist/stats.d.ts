@@ -40,9 +40,15 @@ export declare function querySessionStats(sessionID: string): TokenStats;
  * Query ALL-time aggregate stats (for /compress-stats without a session).
  */
 export declare function queryAllTimeStats(): TokenStats;
+/**
+ * Estimated tokens saved given compression mode and actual output count.
+ * Based on measured reduction ratios from caveman/GEM-THAL benchmarking.
+ */
+export declare const COMPRESSION_RATIO: Record<string, number>;
 export declare function estimateSaved(outputTokens: number, mode: string): number;
 /**
  * Format a number with locale-style comma separators (no Intl dependency).
  */
 export declare function fmt(n: number): string;
+export declare function compactStatsLine(mode: string, _outputTokens: number, savedTokens: number, ratio: number): string;
 //# sourceMappingURL=stats.d.ts.map

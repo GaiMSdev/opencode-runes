@@ -46,18 +46,38 @@ Reason silently in ≤3 minimal draft steps. Emit only the final answer — no v
 
 | Command | Effect |
 |---------|--------|
-| `/compress` | Toggle on (full mode) / off |
-| `/compress lite` | Activate lite mode |
-| `/compress full` | Activate full mode |
-| `/compress ultra` | Activate ultra mode |
-| `/compress-help` | Show this documentation in-session |
-| `/compress-stats` | Show real token stats + savings estimate |
+| `/runes` | Toggle on (full mode) / off |
+| `/runes lite` | Activate lite mode |
+| `/runes full` | Activate full mode |
+| `/runes ultra` | Activate ultra mode |
+| `/runes-config` | View or modify settings (interval, on-switch) |
+| `/runes-stats` | Show real token stats + savings estimate |
+| `/runes-help` | Show this documentation in-session |
 
 Natural language also works:
-- `"activate compress ultra"` → ultra mode
-- `"switch to compress lite"` → lite mode
+- `"activate runes ultra"` → ultra mode
+- `"switch to runes lite"` → lite mode
 - `"normal mode"` → deactivate
-- `"stop compress"` → deactivate
+- `"stop runes"` → deactivate
+
+### Configuration — `/runes-config`
+
+View or modify auto-stats behavior:
+
+| Command | Effect |
+|---------|--------|
+| `/runes-config` | Show current config |
+| `/runes-config stats interval <N>` | Auto-show stats every N turns (default: 5) |
+| `/runes-config stats interval off` | Disable auto-stats |
+| `/runes-config stats on-switch on` | Show stats on mode switch (default: on) |
+| `/runes-config stats on-switch off` | Disable on-switch stats |
+
+When auto-stats triggers, the status badge is enriched with live session data:
+```
+[RUNES: LITE | ~55% | ~2.4K tokens spared]
+```
+
+This replaces the normal `[RUNES: MODE]` badge for that response only.
 
 ---
 
@@ -190,8 +210,11 @@ Stats are read from `~/.local/share/opencode/opencode.db` using the `sqlite3` CL
 
 | Path | Purpose |
 |------|---------|
-| `~/.config/opencode/.compress-active` | Flag file — contains mode string |
-| `~/.config/opencode/plugins/opencode-compress/` | Installed plugin |
+| `~/.config/opencode/.runes-active` | Flag file — contains mode string |
+| `~/.config/opencode/.runes-config.json` | User config (stats interval, on-switch, etc.) |
+| `~/.config/opencode/.runes-turn-counter.json` | Per-session turn counter for auto-stats |
+| `~/.config/opencode/.runes-mode-switched` | Transient marker when mode changes |
+| `~/.config/opencode/plugins/opencode-runes/` | Installed plugin |
 | `~/.config/opencode/opencode.json` | OpenCode config with plugin + command registration |
 | `~/.local/share/opencode/opencode.db` | OpenCode SQLite database (stats source) |
 
