@@ -1,0 +1,17 @@
+{
+  "_comment": "Add the contents of the 'command' key to your ~/.config/opencode/opencode.json to register slash commands globally.",
+  "command": {
+    "runes": {
+      "description": "Activate / switch / deactivate Runes compression (lite|full|ultra)",
+      "template": "Manage Runes compression mode. If the user provided an argument after /runes, that is the mode (lite, full, ultra, or off/normal). If no argument given and Runes is currently off, activate full mode. If Runes is currently on, deactivate it. Use the rune_activate tool to make the change, then confirm with the status badge."
+    },
+    "runes-help": {
+      "description": "Show Runes documentation: modes, commands, MetaGlyph symbols, examples",
+      "template": "Call the rune_help tool and display its output exactly as returned."
+    },
+    "runes-stats": {
+      "description": "Show real token usage stats and estimated savings from Runes",
+      "template": "Call the rune_stats tool with scope='alltime' and display the output exactly as returned."
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "opencode-runes",
+  "version": "1.0.0",
+  "description": "Runes — high-signal compression for OpenCode. Ancient symbols: maximum meaning per mark.",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.14.46"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3"
+  }
+}
