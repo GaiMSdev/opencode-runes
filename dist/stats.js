@@ -1,15 +1,47 @@
+/**
+ * stats.ts — Token statistics from OpenCode's SQLite database.
+ *
+ * OpenCode stores all message data in:
+ *   ~/.local/share/opencode/opencode.db
+ *
+ * The `message` table has a `data` JSON column with this schema (assistant rows):
+ *   {
+ *     "role": "assistant",
+ *     "tokens": {
+ *       "input": number,
+ *       "output": number,
+ *       "reasoning": number,
+ *       "cache": { "read": number, "write": number }
+ *     },
+ *     "modelID": string,
+ *     "providerID": string,
+ *     "cost": number
+ *   }
+ *
+ * We use the `sqlite3` CLI (always available on macOS) via child_process
+ * rather than a native module, so the plugin has zero binary dependencies.
+ */
 import { execSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 const DB_PATH = process.env["OPENCODE_DATA_DIR"] != null
     ? path.join(process.env["OPENCODE_DATA_DIR"], "opencode.db")
     : path.join(os.homedir(), ".local", "share", "opencode", "opencode.db");
-const ZERO_STATS = {
-    input: 0, output: 0, reasoning: 0,
-    cacheRead: 0, cacheWrite: 0, cost: 0,
-    model: "unknown", turns: 0,
-};
+/**
+ * Query the current session's token totals via sqlite3 CLI.
+ * Returns zeroed stats if the database is unavailable.
+ */
 export function querySessionStats(sessionID) {
+    const zero = {
+        input: 0,
+        output: 0,
+        reasoning: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        cost: 0,
+        model: "unknown",
+        turns: 0,
+    };
     try {
         const sql = `
       SELECT
@@ -28,7 +60,7 @@ export function querySessionStats(sessionID) {
     `.trim();
         const result = execSync(`sqlite3 -separator '|' "${DB_PATH}"`, { input: sql, encoding: "utf8", timeout: 3000 }).trim();
         if (!result)
-            return ZERO_STATS;
+            return zero;
         const [inp, out, reason, cr, cw, cost, turns, model] = result.split("|");
         return {
             input: parseInt(inp ?? "0", 10) || 0,
@@ -42,10 +74,23 @@ export function querySessionStats(sessionID) {
         };
     }
     catch {
-        return ZERO_STATS;
+        return zero;
     }
 }
+/**
+ * Query ALL-time aggregate stats (for /compress-stats without a session).
+ */
 export function queryAllTimeStats() {
+    const zero = {
+        input: 0,
+        output: 0,
+        reasoning: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        cost: 0,
+        model: "various",
+        turns: 0,
+    };
     try {
         const sql = `
       SELECT
@@ -62,7 +107,7 @@ export function queryAllTimeStats() {
     `.trim();
         const result = execSync(`sqlite3 -separator '|' "${DB_PATH}"`, { input: sql, encoding: "utf8", timeout: 3000 }).trim();
         if (!result)
-            return { ...ZERO_STATS, model: "various" };
+            return zero;
         const [inp, out, reason, cr, cw, cost, turns] = result.split("|");
         return {
             input: parseInt(inp ?? "0", 10) || 0,
@@ -76,18 +121,26 @@ export function queryAllTimeStats() {
         };
     }
     catch {
-        return { ...ZERO_STATS, model: "various" };
+        return zero;
     }
 }
+/**
+ * Estimated tokens saved given compression mode and actual output count.
+ * Based on measured reduction ratios from caveman/GEM-THAL benchmarking.
+ */
 const COMPRESSION_RATIO = {
-    lite: 0.30,
-    full: 0.55,
-    ultra: 0.75,
+    lite: 0.30, // ~30% shorter output
+    full: 0.55, // ~55% shorter output
+    ultra: 0.75, // ~75% shorter output
 };
 export function estimateSaved(outputTokens, mode) {
     const ratio = COMPRESSION_RATIO[mode] ?? 0;
+    // saved / (saved + actual) = ratio  =>  saved = actual * ratio / (1 - ratio)
     return Math.round(outputTokens * (ratio / (1 - ratio)));
 }
+/**
+ * Format a number with locale-style comma separators (no Intl dependency).
+ */
 export function fmt(n) {
     return n.toLocaleString("en-US");
 }

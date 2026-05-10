@@ -13,9 +13,9 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-export type Mode = "lite" | "full" | "ultra" | "off";
+export type Mode = "lite" | "full" | "ultra" | "wenyan" | "off";
 
-const VALID_MODES: Mode[] = ["lite", "full", "ultra", "off"];
+const VALID_MODES: Mode[] = ["lite", "full", "ultra", "wenyan", "off"];
 
 /**
  * Location of the flag file.
