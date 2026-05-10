@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — Install opencode-compress globally for OpenCode CLI
+# install.sh — Install opencode-runes globally for OpenCode CLI
 #
 # Usage:
 #   ./install.sh            # install to ~/.config/opencode/plugins/
@@ -13,11 +13,11 @@
 
 set -euo pipefail
 
-PLUGIN_NAME="opencode-compress"
+PLUGIN_NAME="opencode-runes"
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OPENCODE_CONFIG="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 INSTALL_DIR="$OPENCODE_CONFIG/plugins/$PLUGIN_NAME"
-FLAG_FILE="$OPENCODE_CONFIG/.compress-active"
+FLAG_FILE="$OPENCODE_CONFIG/.runes-active"
 CONFIG_FILE="$OPENCODE_CONFIG/opencode.json"
 
 # Colours
@@ -27,10 +27,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-info()    { echo -e "${BLUE}[opencode-compress]${NC} $*"; }
-success() { echo -e "${GREEN}[opencode-compress]${NC} $*"; }
-warn()    { echo -e "${YELLOW}[opencode-compress]${NC} $*"; }
-error()   { echo -e "${RED}[opencode-compress]${NC} $*" >&2; }
+info()    { echo -e "${BLUE}[opencode-runes]${NC} $*"; }
+success() { echo -e "${GREEN}[opencode-runes]${NC} $*"; }
+warn()    { echo -e "${YELLOW}[opencode-runes]${NC} $*"; }
+error()   { echo -e "${RED}[opencode-runes]${NC} $*" >&2; }
 
 # ---------------------------------------------------------------------------
 # Uninstall
@@ -126,7 +126,7 @@ fi
 # ---------------------------------------------------------------------------
 # Register slash commands in opencode.json
 # ---------------------------------------------------------------------------
-info "Registering slash commands (/compress, /compress-help, /compress-stats)..."
+info "Registering slash commands (/runes, /runes-help, /runes-stats)..."
 
 if command -v python3 &>/dev/null; then
   python3 - "$CONFIG_FILE" "$PLUGIN_DIR/commands.json" <<'EOF'
@@ -159,13 +159,13 @@ fi
 # Done
 # ---------------------------------------------------------------------------
 echo ""
-success "opencode-compress installed successfully!"
+success "opencode-runes installed successfully!"
 echo ""
 echo "  Try it:"
 echo "    opencode                      # start a session"
-echo "    /compress                     # activate (full mode)"
-echo "    /compress ultra               # switch to ultra"
-echo "    /compress-stats               # show token stats"
-echo "    /compress-help                # show documentation"
+echo "    /runes                        # activate (full mode)"
+echo "    /runes ultra                  # switch to ultra"
+echo "    /runes-stats                  # show token stats"
+echo "    /runes-help                   # show documentation"
 echo "    normal mode                   # deactivate"
 echo ""
