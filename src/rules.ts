@@ -31,7 +31,12 @@ const MODE_RULES: Record<Exclude<Mode, "off">, string> = {
 - Use → for causality: X → Y → Z.
 - Strip conjunctions where unambiguous. One word when one word enough.
 - Reason minimally, emit only the final answer.
-- Goal: Maximal information density — every token earns its place.`,
+- Goal: Maximal information density — every token earns its place.
+
+Examples:
+- Before: "The component re-renders because a new object reference is created on each render cycle." After: "Inline obj prop → new ref → re-render. useMemo."
+- Before: "Connection pooling reuses open database connections instead of creating new ones per request." After: "Pool reuse DB conn. Skip handshake → fast under load."
+- Before: "The authentication middleware checks whether the token has expired before allowing access." After: "Auth middleware: token expiry check. Fail → 401."`,
 
   wenyan: `[RUNES: WENYAN] COMPRESS WENYAN ACTIVE
 - Classical Chinese literary style (文言) for compression.
@@ -87,7 +92,7 @@ export function reinforcement(mode: Exclude<Mode, "off">): string {
     case "lite":
       return "[RUNES: LITE] COMPRESS LITE: Drop filler/hedging. Keep articles + full sentences. Professional-tight.";
     case "ultra":
-      return "[RUNES: ULTRA] COMPRESS ULTRA: Abbrev prose (DB/auth/cfg/req/res/fn/impl/ctx/err/msg/val/pkg). X→Y causality. Strip conjunctions. One word when enough. Emit only final answer.";
+      return `[RUNES: ULTRA] COMPRESS ULTRA: Abbrev prose (DB/auth/cfg/req/res/fn/impl/ctx/err/msg/val/pkg). X→Y causality. Strip conjunctions. One word when enough. Emit only final answer.\nBefore: 'component re-renders because new object reference created each render cycle' → After: 'inline obj prop → new ref → re-render. useMemo.'\nBefore: 'connection pooling reuses open DB connections instead of creating new ones per request' → After: 'pool reuse DB conn. skip handshake → fast.'\nBefore: 'auth middleware checks if token expired before allowing access' → After: 'auth: token expiry check. fail → 401.'`;
     case "wenyan":
       return "[RUNES: WENYAN] COMPRESS WENYAN: Classical Chinese (文言). 之/其/者/也/矣 particles. VO syntax. 成语 idioms. Technical terms preserved.";
     default:
