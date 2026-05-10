@@ -12,6 +12,10 @@
     "runes-stats": {
       "description": "Show real token usage stats and estimated savings from Runes",
       "template": "Call the rune_stats tool with scope='alltime' and display the output exactly as returned."
+    },
+    "runes-commit": {
+      "description": "Generate a compressed Conventional Commits message from staged changes",
+      "template": "Call the rune_commit tool and display its output exactly as returned."
     }
   }
 }

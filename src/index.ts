@@ -133,6 +133,166 @@ function shrinkText(content: string, mode: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// rune_commit helpers
+// ---------------------------------------------------------------------------
+
+function determineType(
+  _diff: string,
+  added: string[],
+  deleted: string[],
+  modified: string[],
+  allFiles: string[],
+): string {
+  const all = [...added, ...deleted, ...modified, ...allFiles];
+  const paths = all.join(" ");
+
+  // Test files
+  if (paths.includes(".test.") || paths.includes(".spec.") || paths.includes("__tests__") || paths.includes("test/") || paths.includes("tests/")) {
+    // Check if only test files changed
+    const nonTest = all.filter(f => !f.includes(".test.") && !f.includes(".spec.") && !f.includes("__tests__") && !f.includes("test/") && !f.includes("tests/"));
+    if (nonTest.length === 0) return "test";
+  }
+
+  if (paths.includes("ci/") || paths.includes(".github/") || paths.includes("Dockerfile") || paths.includes("docker-compose")) return "ci";
+  if (paths.includes("README") || paths.includes(".md") && !paths.includes(".mdx")) {
+    const codeFiles = all.filter(f => !f.endsWith(".md") && !f.endsWith(".mdx"));
+    if (codeFiles.length === 0) return "docs";
+  }
+
+  // If only config files
+  const configFiles = all.filter(f => f.endsWith(".json") || f.endsWith(".yaml") || f.endsWith(".yml") || f.endsWith(".toml") || f.endsWith("rc") || f.includes(".env"));
+  if (configFiles.length === all.length && all.length > 0) return "chore";
+
+  // Package/dep changes
+  if (paths.includes("package.json") || paths.includes("Cargo.toml") || paths.includes("Podfile") || paths.includes("go.mod")) return "build";
+
+  // If there are deleted files
+  if (deleted.length > 0 && added.length === 0) return "chore";
+
+  // Check diff content for fix/feat patterns
+  const fixPatterns = [/bug/i, /fix/i, /error/i, /crash/i, /issue/i, /hotfix/i, /patch/i];
+  const featPatterns = [/feat/i, /add/i, /new/i, /feature/i, /implement/i];
+  const refactorPatterns = [/refactor/i, /rename/i, /restruct/i, /clean/i, /move/i, /extract/i];
+
+  // Count matches in paths
+  let fixScore = 0, featScore = 0, refactorScore = 0;
+  for (const f of all) {
+    for (const p of fixPatterns) if (p.test(f)) fixScore++;
+    for (const p of featPatterns) if (p.test(f)) featScore++;
+    for (const p of refactorPatterns) if (p.test(f)) refactorScore++;
+  }
+
+  if (fixScore > featScore && fixScore > refactorScore) return "fix";
+  if (featScore > fixScore && featScore > refactorScore) return "feat";
+  if (refactorScore > fixScore && refactorScore > featScore) return "refactor";
+
+  // By default: feat for new files, fix for small modifications, else chore
+  if (added.length > modified.length && added.length > 0) return "feat";
+  if (modified.length > added.length) return "fix";
+  return "chore";
+}
+
+function determineScope(files: string[]): string | null {
+  // Extract common directory prefix as scope
+  const dirs = new Set<string>();
+  for (const f of files) {
+    const parts = f.split("/");
+    if (parts.length >= 2) dirs.add(parts[0]!);
+  }
+  if (dirs.size === 1) return [...dirs][0]!;
+  if (dirs.size <= 2 && dirs.size > 0) return [...dirs].join(",");
+  return null;
+}
+
+function generateSubject(
+  type: string,
+  _scope: string | null,
+  added: string[],
+  deleted: string[],
+  modified: string[],
+  allFiles: string[],
+  _addedLines: number,
+  _removedLines: number,
+): string {
+  // Heuristic: pick the best subject based on type and changes
+  const totalChanged = added.length + deleted.length + modified.length;
+
+  if (type === "feat") {
+    if (added.length === 1) {
+      const base = added[0]!.split("/").pop()!.replace(/\.\w+$/, "");
+      return `add ${base}`;
+    }
+    if (added.length > 1) return `add ${added.length} new files`;
+    if (modified.length > 0) {
+      const base = modified[0]!.split("/").pop()!.replace(/\.\w+$/, "");
+      return `add ${base} implementation`;
+    }
+    return "add new functionality";
+  }
+
+  if (type === "fix") {
+    if (modified.length === 1) {
+      const base = modified[0]!.split("/").pop()!.replace(/\.\w+$/, "");
+      return `fix ${base}`;
+    }
+    if (allFiles.length === 1) {
+      const base = allFiles[0]!.split("/").pop()!.replace(/\.\w+$/, "");
+      return `fix ${base}`;
+    }
+    return `fix ${totalChanged > 1 ? "multiple" : "edge case"} issue${totalChanged > 1 ? "s" : ""}`;
+  }
+
+  if (type === "refactor") {
+    if (modified.length === 1) {
+      const base = modified[0]!.split("/").pop()!.replace(/\.\w+$/, "");
+      return `refactor ${base}`;
+    }
+    if (modified.length > 0 && added.length > 0) {
+      return `restructure ${modified[0]!.split("/")[0]}`;
+    }
+    return `refactor ${totalChanged > 1 ? "module" : "code"}`;
+  }
+
+  if (type === "test") {
+    if (added.length > 0) return `add tests for ${added[0]!.split("/")[0]}`;
+    return "update tests";
+  }
+
+  if (type === "docs") {
+    const docFile = allFiles.find(f => f.endsWith(".md"));
+    if (docFile) return `update ${docFile.split("/").pop()!}`;
+    return "update documentation";
+  }
+
+  if (type === "ci") {
+    return "update CI configuration";
+  }
+
+  if (type === "build") {
+    return "update dependencies";
+  }
+
+  if (type === "chore") {
+    if (deleted.length > 0) return `remove ${deleted.length > 1 ? "files" : deleted[0]!.split("/").pop()!}`;
+    if (modified.length > 0 && allFiles.every(f => f.endsWith(".json") || f.endsWith(".yaml") || f.endsWith(".yml") || f.endsWith(".toml"))) {
+      return "update config";
+    }
+    if (totalChanged === 1) {
+      const base = allFiles[0]!.split("/").pop()!;
+      return `update ${base}`;
+    }
+    return "housekeeping";
+  }
+
+  // Fallback
+  if (totalChanged === 1) {
+    const base = allFiles[0]!.split("/").pop()!.replace(/\.\w+$/, "");
+    return `update ${base}`;
+  }
+  return `update ${totalChanged} files`;
+}
+
+// ---------------------------------------------------------------------------
 // Plugin export
 // ---------------------------------------------------------------------------
 
@@ -555,6 +715,140 @@ EXAMPLES:
           }
           writeConfig(cfg);
           return { output: `Config updated.\n${configToLines(cfg).join("\n")}` };
+        },
+      }),
+      // ---- rune_commit --------------------------------------------------
+      rune_commit: tool({
+        description: `Generate a compressed, high-signal commit message following Conventional Commits.
+
+WHEN TO CALL:
+- User says "/runes-commit", "write commit", "generate commit", "commit message"
+
+HOW IT WORKS:
+1. Runs git diff --cached (staged changes)
+2. If no staged changes, falls back to git diff HEAD (unstaged)
+3. Parses diff to determine type, scope, and subject
+4. Outputs a Conventional Commits message: type(scope): subject
+
+RULES:
+- Subject ≤ 50 characters
+- No 'what' descriptions (code shows the change)
+- Body only when 'why' isn't obvious from subject
+- No emojis
+- Conventional Commits types: feat, fix, chore, refactor, test, docs, style, perf, ci, build`,
+        args: {},
+        async execute() {
+          const cwd = process.cwd();
+
+          // Try staged diff first
+          let diff: string;
+          let source: string;
+          try {
+            diff = execSync("git diff --cached", { cwd, encoding: "utf8", timeout: 5000 });
+            source = "staged";
+          } catch {
+            return { output: "Not a git repository or git not available." };
+          }
+
+          if (!diff || diff.trim().length === 0) {
+            // Fallback to unstaged diff vs HEAD
+            try {
+              diff = execSync("git diff HEAD", { cwd, encoding: "utf8", timeout: 5000 });
+              source = "unstaged (git diff HEAD)";
+            } catch {
+              return { output: "No changes found (staged or unstaged). Nothing to commit." };
+            }
+            if (!diff || diff.trim().length === 0) {
+              return { output: "No changes found (staged or unstaged). Nothing to commit." };
+            }
+          }
+
+          // Parse diff to gather file stats
+          const files: string[] = [];
+          const rewrites: string[] = [];
+          const additions: string[] = [];
+          const deletions: string[] = [];
+          let addedLines = 0;
+          let removedLines = 0;
+
+          for (const line of diff.split("\n")) {
+            const addMatch = line.match(/^diff --git a\/(.+?) b\//);
+            if (addMatch) files.push(addMatch[1]!);
+
+            const newFile = line.match(/^new file mode (.+)$/);
+            if (newFile) { const f = files[files.length - 1]; if (f) additions.push(f); }
+
+            const delFile = line.match(/^deleted file mode (.+)$/);
+            if (delFile) { const f = files[files.length - 1]; if (f) deletions.push(f); }
+
+            const renameFrom = line.match(/^rename from (.+)$/);
+            if (renameFrom) rewrites.push(`renamed: ${renameFrom[1]}`);
+
+            const added = line.match(/^\+([^+].*)$/);
+            if (added) addedLines++;
+
+            const removed = line.match(/^\-([^-].*)$/);
+            if (removed) removedLines++;
+          }
+
+          // Recalculate: additions/deletions from diff --git parsing can miss some;
+          // compute remaining files as "modified"
+          const renamed = [...rewrites];
+          const added = [...additions];
+          const deleted = [...deletions];
+          const modified: string[] = [];
+          for (const f of files) {
+            if (!added.includes(f) && !deleted.includes(f)) {
+              // Check if it's a rename target
+              const isRenameTarget = renamed.some(r => r.includes("→ " + f));
+              if (!isRenameTarget) modified.push(f);
+            }
+          }
+
+          // Determine commit type from changes
+          let type = determineType(diff, added, deleted, modified, files);
+          let scope = determineScope(files);
+
+          // Generate subject
+          let subject = generateSubject(type, scope, added, deleted, modified, files, addedLines, removedLines);
+
+          // Ensure subject ≤ 50 chars (type(scope): subject)
+          if (subject.length > 50 && scope) {
+            // Try without scope
+            subject = generateSubject(type, null, added, deleted, modified, files, addedLines, removedLines);
+          }
+          if (subject.length > 50) {
+            // Truncate
+            subject = subject.slice(0, 47) + "...";
+          }
+
+          // Determine if body is needed
+          const lineCount = addedLines + removedLines;
+          let body = "";
+          if (lineCount > 20 || modified.length > 3 || added.length > 1 || deleted.length > 1) {
+            const bulletParts: string[] = [];
+            if (added.length > 0) bulletParts.push(`add: ${added.join(", ")}`);
+            if (modified.length > 0) bulletParts.push(`mod: ${modified.join(", ")}`);
+            if (deleted.length > 0) bulletParts.push(`del: ${deleted.join(", ")}`);
+            if (renamed.length > 0) bulletParts.push(renamed.join(", "));
+            body = bulletParts.join("\n");
+          } else if (addedLines > 0 || removedLines > 0) {
+            // Only generate body if there's a meaningful "why" needed
+            // For simple changes, no body needed
+          }
+
+          const scopePart = scope ? `(${scope})` : "";
+          const message = `${type}${scopePart}: ${subject}` + (body ? `\n\n${body}` : "");
+
+          return {
+            output: `COMMIT MESSAGE (from ${source})
+═══════════════════════════════════
+${message}
+
+${addedLines}+ / ${removedLines}- across ${files.length} file${files.length !== 1 ? "s" : ""}
+═══════════════════════════════════
+Paste into git commit -m or use git commit -m "$(echo '${message}')"`,
+          };
         },
       }),
       // ---- rune_shrink --------------------------------------------------
