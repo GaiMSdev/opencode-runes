@@ -76,8 +76,8 @@ export function querySessionStats(sessionID: string): TokenStats {
     `.trim();
 
     const result = execSync(
-      `sqlite3 -separator '|' "${DB_PATH}" ${JSON.stringify(sql)}`,
-      { encoding: "utf8", timeout: 3000 }
+      `sqlite3 -separator '|' "${DB_PATH}"`,
+      { input: sql, encoding: "utf8", timeout: 3000 }
     ).trim();
 
     if (!result) return zero;
@@ -128,8 +128,8 @@ export function queryAllTimeStats(): TokenStats {
     `.trim();
 
     const result = execSync(
-      `sqlite3 -separator '|' "${DB_PATH}" ${JSON.stringify(sql)}`,
-      { encoding: "utf8", timeout: 3000 }
+      `sqlite3 -separator '|' "${DB_PATH}"`,
+      { input: sql, encoding: "utf8", timeout: 3000 }
     ).trim();
 
     if (!result) return zero;
