@@ -26,31 +26,12 @@ const MODE_RULES: Record<Exclude<Mode, "off">, string> = {
 - Goal: High-signal, low-ceremony output.`,
 
   ultra: `[RUNES: ULTRA] COMPRESS ULTRA ACTIVE
-- MetaGlyph symbols: ∈ (in/contains), → (leads to/causes), ∀ (all/every), ∃ (exists/there-is), ∴ (therefore), ! (critical/warning).
-- ⚠️  STRICT: Use ONLY these MetaGlyph symbols listed above. NEVER invent symbols like <R>, ⊕, ⊗, ↦, ⇢, ⌈⌉, or any other custom notation.
-- Chain-of-Draft (CoD): reason silently in ≤3 minimal draft steps, emit only the final answer.
 - Abbreviate prose: DB, auth, cfg, req, res, fn, impl, ctx, err, msg, val, bool, pkg, dep, env, init, ref, var, arg, param, attr, prop.
+- Never abbreviate: code symbols, function names, API names, error strings, file paths, URLs, numbers, versions.
+- Use → for causality: X → Y → Z.
 - Strip conjunctions where unambiguous. One word when one word enough.
-- Arrows for causality: X → Y → Z.
-- Goal: Maximal information density — every token earns its place.
--
-- EXAMPLES of correct MetaGlyph usage:
--   "auth∈cfg → token∈res"           NOT "auth<R>cfg → token<response>"
--   "∀ fn must check ctx"            NOT "∀ fn must check @ctx"
--   "∃ impl ∈ repo → test ∈ CI"      NOT "∃ impl ⊗ repo"
--   "err ∈ validate ∴ return 400"    NOT "err ∈ validate →⊕ return 400"
--   "! disk full → backup"            NOT "! disk full ⇒ backup"`,
-  wenyan: `[RUNES: WENYAN] COMPRESS WENYAN ACTIVE
-- Classical Chinese literary style (文言) for compression.
-- Use wenyan particles: 之, 其, 者, 也, 矣, 乎, 焉, 哉, 兮, 耳.
-- Omit subjects where contextually obvious (pro-drop).
-- Verb precedes object (classical Chinese syntax: VO).
-- Replace multi-word phrases with classical idioms (成语) where possible.
-- Strip all modern filler, articles, conjunctions, pleasantries.
-- Numbers as classical Chinese: 一, 二, 三, 四, 五, 六, 七, 八, 九, 十, 百, 千, 万.
-- Technical terms preserved as-is (code, API, paths, URLs — NEVER compress).
-- Goal: 60-80% character reduction via classical Chinese literary compression.
-- Auto-clarity: revert to ultra/full prose for security, destructive ops, legal.`,
+- Reason minimally, emit only the final answer.
+- Goal: Maximal information density — every token earns its place.`,
 };
 
 // ---------------------------------------------------------------------------
@@ -74,11 +55,6 @@ const EXCEPTIONS = `
 - Proper nouns, API names, library identifiers, model names.
 - Numbers, versions, file paths, URLs.
 
-## MetaGlyph discipline (ULTRA mode only) — NEVER invent symbols:
-- Use ONLY the six defined MetaGlyph: ∈ → ∀ ∃ ∴ !
-- NEVER use <R>, ⊕, ⊗, ↦, ⇢, or any custom notation.
-- Bad: "err <R> timeout →⊕ retry"  —  Good: "err∈timeout→retry"
-
 Deactivate: say "normal mode" or invoke /compress to toggle off.`;
 
 // ---------------------------------------------------------------------------
@@ -100,9 +76,7 @@ export function reinforcement(mode: Exclude<Mode, "off">): string {
     case "lite":
       return "[RUNES: LITE] COMPRESS LITE: Drop filler/hedging. Keep articles + full sentences. Professional-tight.";
     case "ultra":
-      return "[RUNES: ULTRA] COMPRESS ULTRA: MetaGlyph ONLY: ∈ → ∀ ∃ ∴ !. Abbreviate prose (DB/fn/req/res/impl/ctx/err). Strip conjunctions. CoD. Arrows. NEVER invent symbols.";
-    case "wenyan":
-      return "[RUNES: WENYAN] COMPRESS WENYAN: Classical Chinese (wenyan) compression. Use 之/其/者/也/矣 particles. Classical syntax VO. Pro-drop subjects. Replace phrases with 成语 idioms. Technical terms preserved.";
+      return "[RUNES: ULTRA] COMPRESS ULTRA: Abbrev prose (DB/auth/cfg/req/res/fn/impl/ctx/err/msg/val/pkg). X→Y causality. Strip conjunctions. One word when enough. Emit only final answer.";
     default:
       return "[RUNES: FULL] COMPRESS FULL: Drop articles. Fragments OK. No pleasantries. High-signal.";
   }
