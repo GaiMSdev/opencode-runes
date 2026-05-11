@@ -1,83 +1,126 @@
-/**
- * flag.ts — Persistent flag file helpers for opencode-runes.
- *
- * Stores the active compression mode in a plain text file so it survives
- * across tool calls and session turns (in-memory variables do not).
- *
- * Flag file: ~/.config/opencode/.runes-active
- * Contents:  "lite" | "full" | "ultra" | "off"
- * Missing    = off (no active compression)
- */
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 const VALID_MODES = ["lite", "full", "ultra", "wenyan", "off"];
-/**
- * Location of the flag file.
- * Respects OPENCODE_CONFIG_DIR env var if set; otherwise uses the default.
- */
+const MAX_FLAG_BYTES = 64;
 export function flagPath() {
     const base = process.env["OPENCODE_CONFIG_DIR"] ??
         path.join(os.homedir(), ".config", "opencode");
     return path.join(base, ".runes-active");
 }
-/**
- * Read the current mode from the flag file.
- * Returns null if the file is absent, malformed, or a symlink (security).
- */
-export function readFlag() {
-    const fp = flagPath();
+export function resolveDirSafe(dirPath) {
     try {
-        const stat = fs.lstatSync(fp);
-        // Reject symlinks — prevents path-traversal attacks via flag file
-        if (stat.isSymbolicLink())
-            return null;
-        // Reject suspiciously large files (real flag is ≤5 bytes)
-        if (stat.size > 32)
-            return null;
-        const val = fs.readFileSync(fp, "utf8").trim();
-        return VALID_MODES.includes(val) ? val : null;
+        const lstat = fs.lstatSync(dirPath);
+        if (lstat.isSymbolicLink()) {
+            const real = fs.realpathSync(dirPath);
+            const stat = fs.statSync(real);
+            if (!stat.isDirectory())
+                return null;
+            if (typeof process.getuid === "function") {
+                if (stat.uid !== process.getuid())
+                    return null;
+            }
+            else {
+                const home = path.resolve(os.homedir());
+                const resolved = path.resolve(real);
+                if (!resolved.toLowerCase().startsWith(home.toLowerCase() + path.sep) &&
+                    resolved.toLowerCase() !== home.toLowerCase())
+                    return null;
+            }
+            return real;
+        }
+        return dirPath;
     }
     catch {
         return null;
     }
 }
-/**
- * Write a mode to the flag file.
- * Silently no-ops if the path is a symlink.
- */
-export function writeFlag(mode) {
-    const fp = flagPath();
+function safeReadFile(filePath) {
     try {
-        // Double-check for symlink before writing
+        const st = fs.lstatSync(filePath);
+        if (st.isSymbolicLink() || !st.isFile())
+            return null;
+        if (st.size > MAX_FLAG_BYTES)
+            return null;
+        const O_NOFOLLOW = typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
+        const flags = fs.constants.O_RDONLY | O_NOFOLLOW;
+        let fd;
         try {
-            if (fs.lstatSync(fp).isSymbolicLink())
+            fd = fs.openSync(filePath, flags);
+            const buf = Buffer.alloc(MAX_FLAG_BYTES);
+            const n = fs.readSync(fd, buf, 0, MAX_FLAG_BYTES, 0);
+            return buf.slice(0, n).toString("utf8");
+        }
+        finally {
+            if (fd !== undefined)
+                fs.closeSync(fd);
+        }
+    }
+    catch {
+        return null;
+    }
+}
+function safeWriteFile(filePath, content) {
+    try {
+        const dir = path.dirname(filePath);
+        fs.mkdirSync(dir, { recursive: true });
+        const realDir = resolveDirSafe(dir);
+        if (!realDir)
+            return;
+        const realPath = path.join(realDir, path.basename(filePath));
+        try {
+            if (fs.lstatSync(realPath).isSymbolicLink())
                 return;
         }
-        catch {
-            // File doesn't exist yet — that's fine
+        catch (e) {
+            const nodeErr = e;
+            if (nodeErr.code !== "ENOENT")
+                return;
         }
-        fs.mkdirSync(path.dirname(fp), { recursive: true });
-        fs.writeFileSync(fp, mode, "utf8");
+        const tempPath = path.join(realDir, `.runes-active.${process.pid}.${Date.now()}`);
+        const O_NOFOLLOW = typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
+        const wFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | O_NOFOLLOW;
+        let fd;
+        try {
+            fd = fs.openSync(tempPath, wFlags, 0o600);
+            fs.writeSync(fd, content);
+            try {
+                fs.fchmodSync(fd, 0o600);
+            }
+            catch { /* best-effort */ }
+        }
+        finally {
+            if (fd !== undefined)
+                fs.closeSync(fd);
+        }
+        fs.renameSync(tempPath, realPath);
     }
     catch {
-        // Best-effort; plugin never crashes the session
+        /* best-effort */
     }
 }
-/**
- * Remove the flag file (deactivate compression).
- */
+export function readFlag() {
+    const raw = safeReadFile(flagPath());
+    if (!raw)
+        return null;
+    const val = raw.trim().toLowerCase();
+    return VALID_MODES.includes(val) ? val : null;
+}
+export function writeFlag(mode) {
+    safeWriteFile(flagPath(), mode);
+}
 export function removeFlag() {
+    const fp = flagPath();
     try {
-        fs.unlinkSync(flagPath());
+        const st = fs.lstatSync(fp);
+        if (st.isSymbolicLink() || !st.isFile())
+            return;
+        fs.unlinkSync(fp);
     }
     catch {
-        // Already gone — no-op
+        /* best-effort */
     }
 }
-/**
- * Convenience: is compression currently active?
- */
 export function isActive() {
     const m = readFlag();
     return m !== null && m !== "off";
