@@ -24,21 +24,25 @@ Inspired by [caveman](https://github.com/JuliusBrussee/caveman) by Julius Brusse
 |------|-------------|-------------|
 | `lite` | ~30% | Drop filler/hedging. Keep articles and full sentences. Professional-tight. |
 | `full` | ~55% | Drop articles. Fragments OK. Short synonyms. No pleasantries. **(default)** |
-| `ultra` | ~75% | MetaGlyph symbols. Abbreviate prose (DB/auth/cfg/fn/impl/ctx/err). Chain-of-Draft. Arrows for causality. |
+| `ultra` | ~75% | Abbreviate prose (DB/auth/cfg/fn/impl/ctx/err). Chain-of-Draft. → for causality. NOT→DO contrastive examples. |
 | `wenyan` | 60-80% char | Classical Chinese literary style (文言). Particles (之/其/者/也/矣). Classical VO syntax. Pro-drop subjects. 成语 idioms. |
 
-### MetaGlyph symbols (ultra mode)
+### Ultra mode — NOT→DO contrastive anchoring
 
-| Symbol | Meaning |
-|--------|---------|
-| `∈` | in / contains |
-| `→` | leads to / causes / maps to |
-| `∀` | all / every |
-| `∃` | exists / there-is |
-| `∴` | therefore |
-| `!` | critical / warning |
+Ultra mode uses **contrastive examples** (NOT→DO pairs) to teach compression. Research shows negative examples (what NOT to write) are more effective than positive rules alone.
 
-**Strict rule:** ONLY these six symbols are allowed. Never invent custom notation like `<R>`, `⊕`, `⊗`, `↦`, `⇢`, etc.
+```
+NOT  "The function validates authentication by checking if the token exists in the database."
+DO   "auth in cfg → token in res"
+
+NOT  "Connection pooling reuses open database connections instead of creating new ones per request."
+DO   "pool reuse DB conn. skip handshake → fast."
+
+NOT  "The component re-renders because a new object reference is created on each render cycle."
+DO   "inline obj → new ref → re-render. useMemo."
+```
+
+**Causality:** → is the ONLY allowed symbol. NEVER invent custom notation.
 
 ### Wenyan mode (文言)
 
@@ -179,7 +183,7 @@ cp package.json ~/.config/opencode/plugins/opencode-runes/
       "template": "Manage Runes compression mode. Use the rune_activate tool."
     },
     "runes-help": {
-      "description": "Show Runes documentation: modes, commands, MetaGlyph symbols, examples",
+      "description": "Show Runes documentation: modes, commands, compression techniques, examples",
       "template": "Call the rune_help tool and display its output exactly as returned."
     },
     "runes-stats": {

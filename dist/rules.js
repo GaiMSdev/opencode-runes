@@ -20,12 +20,21 @@ const MODE_RULES = {
 - Pattern: [subject] [verb] [reason]. [next step].
 - Goal: High-signal, low-ceremony output.`,
     ultra: `[RUNES: ULTRA] COMPRESS ULTRA ACTIVE
-- Abbreviate prose: DB, auth, cfg, req, res, fn, impl, ctx, err, msg, val, bool, pkg, dep, env, init, ref, var, arg, param, attr, prop.
-- Never abbreviate: code symbols, function names, API names, error strings, file paths, URLs, numbers, versions.
-- Use → for causality: X → Y → Z.
+- Prose abbreviations: DB, auth, cfg, req, res, fn, impl, ctx, err, msg, val, bool, pkg, dep, env, init, ref, var, arg, param, attr, prop.
+- → for causality: X → Y → Z. ONLY → allowed. NEVER invent symbols.
 - Strip conjunctions where unambiguous. One word when one word enough.
-- Reason minimally, emit only the final answer.
-- Goal: Maximal information density — every token earns its place.`,
+- Chain-of-Draft (CoD): reason silently in ≤3 steps, emit only final answer.
+- Goal: Maximal information density — every token earns its place.
+
+- NOT → DO contrastive examples (learn what NOT to do):
+-   NOT "The function validates authentication by checking if the token exists in the database."
+-   DO  "auth in cfg → token in res"
+-   NOT "The component re-renders because a new object reference is created on each render cycle."
+-   DO  "inline obj → new ref → re-render. useMemo."
+-   NOT "Connection pooling reuses open database connections instead of creating new ones per request."
+-   DO  "pool reuse DB conn. skip handshake → fast."
+-   NOT "There are three main approaches we could take to solving this problem."
+-   DO  "3 approaches:"`,
     wenyan: `[RUNES: WENYAN] COMPRESS WENYAN ACTIVE
 - Classical Chinese literary style (文言) for compression.
 - Use wenyan particles: 之, 其, 者, 也, 矣, 乎, 焉, 哉, 兮, 耳.
@@ -57,6 +66,11 @@ const EXCEPTIONS = `
 - Proper nouns, API names, library identifiers, model names.
 - Numbers, versions, file paths, URLs.
 
+## Ultra mode discipline — NEVER invent symbols:
+- Use ONLY → for causality. NEVER invent custom symbols.
+- When in doubt, use plain words over invented notation.
+- Bad: "err → timeout ⊕ retry"  —  Good: "err in timeout → retry"
+
 Deactivate: say "normal mode" or invoke /compress to toggle off.`;
 // ---------------------------------------------------------------------------
 // Public API
@@ -75,7 +89,7 @@ export function reinforcement(mode) {
         case "lite":
             return "[RUNES: LITE] COMPRESS LITE: Drop filler/hedging. Keep articles + full sentences. Professional-tight.";
         case "ultra":
-            return "[RUNES: ULTRA] COMPRESS ULTRA: Abbrev prose (DB/auth/cfg/req/res/fn/impl/ctx/err/msg/val/pkg). X→Y causality. Strip conjunctions. One word when enough. Emit only final answer.";
+            return `[RUNES: ULTRA] COMPRESS ULTRA: Abbrev prose (DB/auth/cfg/req/res/fn/impl/ctx/err/msg/val/pkg). → for causality. Strip conjunctions. CoD. NOT→DO guide. NEVER invent symbols.\nNOT: 'component re-renders because new object ref' → DO: 'inline obj → new ref → re-render. useMemo.'\nNOT: 'connection pooling reuses open DB connections' → DO: 'pool reuse DB conn. skip handshake → fast.'`;
         case "wenyan":
             return "[RUNES: WENYAN] COMPRESS WENYAN: Classical Chinese (文言). 之/其/者/也/矣 particles. VO syntax. 成语 idioms. Technical terms preserved.";
         default:

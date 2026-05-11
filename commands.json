@@ -6,7 +6,7 @@
       "template": "Manage Runes compression mode. If the user provided an argument after /runes, that is the mode (lite, full, ultra, or off/normal). If no argument given and Runes is currently off, activate full mode. If Runes is currently on, deactivate it. Use the rune_activate tool to make the change, then confirm with the status badge."
     },
     "runes-help": {
-      "description": "Show Runes documentation: modes, commands, MetaGlyph symbols, examples",
+      "description": "Show Runes documentation: modes, commands, compression examples, NOT→DO contrastive guide",
       "template": "Call the rune_help tool and display its output exactly as returned."
     },
     "runes-stats": {

@@ -397,7 +397,7 @@ WHEN TO CALL THIS TOOL:
 MODES:
 - lite  : Drop filler/hedging. Keep full sentences. Professional-tight.
 - full  : Drop articles. Fragments OK. No pleasantries. (DEFAULT)
-- ultra : MetaGlyph symbols. Abbreviate prose. Chain-of-Draft. Maximum density.
+- ultra : Abbreviate prose (DB/fn/req/res/impl/ctx/err). → for causality. Chain-of-Draft. Maximum density.
 - wenyan : Classical Chinese literary compression. Classical syntax, particles, idioms. 60-80% character reduction.
 
 ACTION:
@@ -422,7 +422,7 @@ After calling this tool, confirm the new mode to the user with the status badge.
                     const modeDescriptions = {
                         lite: "Drop filler/hedging. Keep full sentences. Professional-tight.",
                         full: "Drop articles. Fragments OK. No pleasantries. High-signal.",
-                        ultra: "MetaGlyph (∈ → ∀ ∃ ∴ !). Abbreviate prose. Chain-of-Draft. Maximum density.",
+                        ultra: "Abbreviate prose (DB/fn/req/res/impl/ctx/err). → for causality. Chain-of-Draft. Maximum density.",
                         wenyan: "Classical Chinese (wenyan) compression. Zen particles, VO syntax, pro-drop, idioms.",
                     };
                     return {
@@ -526,7 +526,7 @@ MODES
 ─────
 lite   Drop filler/hedging. Keep articles and full sentences. Professional-tight.
 full   Drop articles. Fragments OK. Short synonyms. No pleasantries. [DEFAULT]
-ultra  Abbreviate prose (DB/fn/req/res/impl/ctx/err). MetaGlyph symbols.
+ultra  Abbreviate prose (DB/fn/req/res/impl/ctx/err). → for causality.
        Strip conjunctions. Chain-of-Draft. One word when enough.
 wenyan Classical Chinese (wenyan) compression. Particles (之/其/者/也),
        VO syntax, pro-drop, idioms. 60-80% char reduction.
@@ -560,16 +560,23 @@ View or modify auto-stats behavior:
 Stats appear as enriched badge in the AI response:
   [RUNES: LITE | ~55% | ~2.4K tokens spared]
 
-METAGLYPH SYMBOLS (ultra only)
-────────────────────────────────
-∈  in / contains
-→  leads to / causes / maps to
-∀  all / every
-∃  exists / there-is
-∴  therefore
-!  critical / warning
+ULTRA MODE COMPRESSION
+──────────────────────
+→  leads to / causes / maps to (ONLY symbol allowed)
 
-⚠️  Use ONLY these six symbols. NEVER invent custom notation (<R>, ⊕, ⊗, ↦, ⇢, etc.).
+Prose abbreviations (mandatory in ultra mode):
+DB, auth, cfg, req, res, fn, impl, ctx, err, msg,
+val, bool, pkg, dep, env, init, ref, var, arg,
+param, attr, prop, prev, curr, tmp, addl, approx,
+app, info, docs, repo, lib
+
+NOT → DO contrastive examples:
+  NOT "The function validates authentication by checking if the token exists in the database."
+  DO  "auth in cfg → token in res"
+  NOT "Connection pooling reuses open database connections instead of creating new ones per request."
+  DO  "pool reuse DB conn. skip handshake → fast."
+
+⚠️  NEVER invent custom symbols. Use ONLY → for causality. Plain words > invented notation.
 
 CHAIN-OF-DRAFT (ultra only)
 ─────────────────────────────
